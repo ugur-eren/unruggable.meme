@@ -1,4 +1,6 @@
-import { argent, braavos, StarknetConfig, starkscan, useInjectedConnectors } from '@starknet-react/core'
+import { argent, braavos, StarknetConfig, starkscan, useInjectedConnectors, useNetwork } from '@starknet-react/core'
+import { Provider as HooksProvider } from 'hooks'
+import { useMemo } from 'react'
 import { nethermindRpcProviders, SUPPORTED_STARKNET_NETWORKS } from 'src/constants/networks'
 import { ArgentMobileConnector } from 'starknetkit/argentMobile'
 import { WebWalletConnector } from 'starknetkit/webwallet'
@@ -32,4 +34,17 @@ export function StarknetProvider({ children }: StarknetProviderProps) {
       {children}
     </StarknetConfig>
   )
+}
+
+// SDK HOOKS
+interface HooksSDKProviderProps {
+  children: React.ReactNode
+}
+
+export function HooksSDKProvider({ children }: HooksSDKProviderProps) {
+  const { chain } = useNetwork()
+
+  const provider = useMemo(() => nethermindRpcProviders(chain) ?? undefined, [chain])
+
+  return <HooksProvider provider={provider}>{children}</HooksProvider>
 }

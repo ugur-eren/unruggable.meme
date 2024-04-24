@@ -1,23 +1,20 @@
-import { Fraction, Percent } from '@uniswap/sdk-core'
+import { Percent } from '@uniswap/sdk-core'
+import { useFactory, useQuoteToken, useQuoteTokenPrice } from 'hooks'
 import moment from 'moment'
 import { useCallback, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { IconButton } from 'src/components/Button'
-import { DECIMALS, FOREVER, LiquidityType } from 'src/constants/misc'
+import { FOREVER } from 'src/constants/misc'
 import { Safety, SAFETY_COLORS } from 'src/constants/safety'
 import { QUOTE_TOKENS } from 'src/constants/tokens'
 import useChainId from 'src/hooks/useChainId'
 import useLinks from 'src/hooks/useLinks'
 import useMemecoin from 'src/hooks/useMemecoin'
-import { useQuoteTokenPrice } from 'src/hooks/usePrice'
-import useQuoteToken from 'src/hooks/useQuote'
 import Box from 'src/theme/components/Box'
 import { Column, Row } from 'src/theme/components/Flex'
 import * as Icons from 'src/theme/components/Icons'
 import * as Text from 'src/theme/components/Text'
 import { formatPercentage } from 'src/utils/amount'
-import { decimalsScale } from 'src/utils/decimalScale'
-import { getInitialPrice } from 'src/utils/ekubo'
 import { parseMonthsDuration } from 'src/utils/moment'
 import {
   getLiquidityLockSafety,
@@ -33,7 +30,8 @@ export default function TokenMetrics() {
   const [dropdownOpened, setDropdownOpened] = useState(false)
 
   // memecoin
-  const { data: memecoin } = useMemecoin()
+  const { address: tokenAddress } = useParams()
+  const { data: memecoin } = useMemecoin(tokenAddress)
 
   // dropdown
   const toggleDropdown = useCallback(() => setDropdownOpened((state) => !state), [])
@@ -50,6 +48,9 @@ export default function TokenMetrics() {
     memecoin?.isLaunched ? memecoin.launch.blockNumber - 1 : undefined,
   )
 
+  // sdk factory
+  const sdkFactory = useFactory()
+
   // starknet
   const chainId = useChainId()
 
@@ -61,7 +62,7 @@ export default function TokenMetrics() {
     const ret: Record<string, { parsedValue: string; safety: Safety }> = {}
 
     // team allocation
-    const teamAllocation = new Percent(memecoin.launch.teamAllocation, memecoin.totalSupply)
+    const teamAllocation = new Percent(memecoin.launch.teamAllocation.toString(), memecoin.totalSupply.toString())
 
     ret.teamAllocation = {
       parsedValue: formatPercentage(teamAllocation),
@@ -94,35 +95,7 @@ export default function TokenMetrics() {
 
     // starting mcap
     if (quoteTokenPriceAtLaunch) {
-      let startingMcap: Fraction | undefined
-      switch (memecoin.liquidity.type) {
-        case LiquidityType.STARKDEFI_ERC20:
-        case LiquidityType.JEDISWAP_ERC20: {
-          startingMcap =
-            ret.quoteToken.safety === Safety.SAFE
-              ? new Fraction(memecoin.liquidity.quoteAmount)
-                  .multiply(new Fraction(memecoin.launch.teamAllocation, memecoin.totalSupply).add(1))
-                  .divide(decimalsScale(quoteToken.decimals))
-                  .multiply(quoteTokenPriceAtLaunch)
-              : undefined
-
-          break
-        }
-
-        case LiquidityType.EKUBO_NFT: {
-          const initialPrice = getInitialPrice(memecoin.liquidity.startingTick)
-          startingMcap =
-            ret.quoteToken.safety === Safety.SAFE
-              ? new Fraction(
-                  initialPrice.toFixed(DECIMALS).replace(/\./, '').replace(/^0+/, ''), // from 0.000[...]0001 to "1"
-                  decimalsScale(DECIMALS),
-                )
-                  .multiply(quoteTokenPriceAtLaunch)
-                  .multiply(memecoin.totalSupply)
-                  .divide(decimalsScale(DECIMALS))
-              : undefined
-        }
-      }
+      const startingMcap = sdkFactory.getStartingMarketCap(memecoin, quoteTokenPriceAtLaunch)
 
       ret.startingMcap = {
         parsedValue: startingMcap ? `$${startingMcap.toFixed(0, { groupSeparator: ',' })}` : 'UNKNOWN',
@@ -131,7 +104,7 @@ export default function TokenMetrics() {
     }
 
     return ret
-  }, [quoteToken?.decimals, memecoin, chainId, quoteTokenPriceAtLaunch])
+  }, [quoteToken?.decimals, memecoin, chainId, quoteTokenPriceAtLaunch, sdkFactory])
 
   if (!memecoin) return null
 
