@@ -231,6 +231,44 @@ export class Factory implements FactoryInterface {
     )
   }
 
+  public getCollectEkuboFeesCalldata(memecoin: Memecoin) {
+    if (!memecoin.isLaunched || memecoin.liquidity.type !== LiquidityType.EKUBO_NFT) return
+
+    const collectFeesCalldata = CallData.compile([
+      memecoin.liquidity.ekuboId, // ekubo pool id
+      memecoin.liquidity.owner,
+    ])
+
+    const calls = [
+      {
+        contractAddress: memecoin.liquidity.lockManager,
+        entrypoint: Selector.WITHDRAW_FEES,
+        calldata: collectFeesCalldata,
+      },
+    ]
+
+    return { calls }
+  }
+
+  public getExtendLiquidityLockCalldata(memecoin: Memecoin, seconds: number) {
+    if (!memecoin?.isLaunched || memecoin.liquidity.type === LiquidityType.EKUBO_NFT) return
+
+    const extendCalldata = CallData.compile([
+      memecoin.liquidity.lockPosition, // liquidity position
+      seconds,
+    ])
+
+    const calls = [
+      {
+        contractAddress: memecoin.liquidity.lockManager,
+        entrypoint: Selector.EXTEND_LOCK,
+        calldata: extendCalldata,
+      },
+    ]
+
+    return { calls }
+  }
+
   public getDeployCalldata(data: DeployData) {
     const salt = stark.randomAddress()
 
